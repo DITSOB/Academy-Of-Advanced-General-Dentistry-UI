@@ -1,0 +1,18 @@
+/* Page switching + Home snapshot blocks. Load AFTER styles.css */
+.page{display:none}
+.page.active{display:block;animation:pgIn .4s ease}
+@keyframes pgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.page.active{animation:none}}
+.snap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:32px}
+.snap-card{display:block;padding:24px;border:1px solid var(--line);border-top:5px solid var(--acc);border-radius:12px;background:var(--surf);transition:border-color .2s}
+.snap-card:nth-child(2){border-top-color:var(--deep2)}.snap-card:nth-child(3){border-top-color:var(--deep)}.snap-card:nth-child(4){border-top-color:var(--gold)}
+.snap-card:hover{border-color:var(--acc)}
+.snap-card h3{font-size:1.2rem}.snap-card p{margin:0;color:var(--mute);font-size:.95rem}
+.snap-card .more{display:inline-block;margin-top:14px;color:var(--acc);font-weight:700;font-size:.85rem}
+.home-alt{background:var(--surf)}
+.home-costs{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.home-costs span{border:1px solid var(--line);background:var(--surf);padding:8px 16px;border-radius:999px;font-size:.88rem}
+.band{background:linear-gradient(160deg,var(--deep),var(--deep2));color:#fff}
+.band h2{color:#fff}.band p{color:#f0d9e1}
+.band .btn{display:inline-flex;padding:13px 25px;border-radius:999px;font-weight:700;background:#fff;color:var(--deep);margin-top:18px}
+.band .btn:focus-visible{outline-color:#fff}
