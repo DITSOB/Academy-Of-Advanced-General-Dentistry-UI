@@ -19,40 +19,95 @@ const $=id=>document.getElementById(id);
 const icons=()=>{if(window.lucide)lucide.createIcons()};
 let refreshReveal=()=>{};
 
-/* ---------- Programs, modal, tabs ---------- */
-const modal=$("dg");let lastFocus=null;
-function openModal(btn,eyebrow,p,heading,rows){
-  lastFocus=btn;$("modal-eyebrow").textContent=eyebrow;$("modal-title").textContent=p.title;
-  $("modal-subtitle").textContent=p.subtitle;$("modal-subtitle").hidden=false;
-  $("modal-description").textContent=p.overview;
-  document.querySelector("#modal-module-section h3").textContent=heading;
-  $("modal-modules").replaceChildren(...rows);
-  $("modal-module-section").hidden=false;$("modal-link").hidden=true;
-  modal.showModal();document.body.style.overflow="hidden";$("modal-close").focus();
-}
-function programCard(p,i,icon,id,eyebrow,heading,rowsFn){
-  const b=document.createElement("button");b.type="button";b.id=id+(i+1);b.className="program-card canva-card reveal";
-  b.setAttribute("aria-label","Overview of "+p.title);
-  b.innerHTML=`<span class="program-icon"><i data-lucide="${icon}"></i></span><strong></strong><span class="practice-card-subtitle"></span><span class="practice-card-preview"></span><span class="card-bottom"><span>View program overview</span><i data-lucide="arrow-up-right"></i></span>`;
-  b.querySelector("strong").textContent=p.title;
-  b.querySelector(".practice-card-subtitle").textContent=p.subtitle;
-  b.querySelector(".practice-card-preview").textContent=p.overview;
-  b.onclick=()=>openModal(b,eyebrow,p,heading,rowsFn(p));
-  return b;
+/* ---------- Programs: each card links to its own page ---------- */
+const slug=t=>t.toLowerCase().replace(/™/g,"").replace(/&/g,"and").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+const IMG={"digiplan":"dentist,computer","guided-gum-therapy":"dental,hygiene","micd-resto":"dentist,teeth","bite-balance-therapy":"dental,jaw","smile-makeup-therapy":"smile,teeth","biofirst-implant-dentistry":"dental,implant","micd-rehab":"dentist,patient","gp-orthoalign-program":"braces,orthodontic","dental-practice-management":"clinic,office","dental-communication-skills":"doctor,patient","dental-practice-economics":"business,finance","dental-innovation-and-entrepreneurship":"innovation,technology"};
+/* Stand-in photos (keyword-based, from loremflickr.com). To use your own, add  image:"images/digiplan.jpg"  to a program above. */
+const imgFor=(p,w,h)=>p.image||`https://loremflickr.com/${w}/${h}/${IMG[slug(p.title)]||"dentist"}?lock=${Object.keys(IMG).indexOf(slug(p.title))+1}`;
+function programCard(p,i,icon,id){
+  const a=document.createElement("a");
+  a.href="program.html?p="+slug(p.title);a.id=id+(i+1);a.className="program-card canva-card reveal";
+  a.setAttribute("aria-label","View "+p.title);
+  a.innerHTML=`<span class="program-photo"><img alt="" loading="lazy"><span class="program-icon"><i data-lucide="${icon}"></i></span></span><strong></strong><span class="practice-card-subtitle"></span><span class="practice-card-preview"></span><span class="card-bottom"><span>View program</span><i data-lucide="arrow-up-right"></i></span>`;
+  const im=a.querySelector("img");im.src=imgFor(p,600,360);im.onerror=()=>im.remove();
+  a.querySelector("strong").textContent=p.title;
+  a.querySelector(".practice-card-subtitle").textContent=p.subtitle;
+  a.querySelector(".practice-card-preview").textContent=p.overview;
+  return a;
 }
 const grid=$("program-grid");
 if(grid){
-  programs.forEach((p,i)=>grid.appendChild(programCard(p,i,"activity","program-","Clinical skills program",p.heading,
-    p=>p.items.map(([n,t])=>{const li=document.createElement("li"),b=document.createElement("b");b.textContent=n+":";li.append(b," "+t);return li}))));
-  practicePrograms.forEach((p,i)=>$("practice-grid").appendChild(programCard(p,i,"briefcase-business","practice-program-","Practice skills program","Modules",
-    p=>p.modules.map(t=>{const li=document.createElement("li");li.textContent=t;return li}))));
-  $("modal-close").onclick=()=>modal.close();
-  modal.addEventListener("close",()=>{document.body.style.overflow="";lastFocus&&lastFocus.focus()});
-  modal.addEventListener("click",e=>{if(e.target===modal)modal.close()});
+  programs.forEach((p,i)=>grid.appendChild(programCard(p,i,"activity","program-")));
+  practicePrograms.forEach((p,i)=>$("practice-grid").appendChild(programCard(p,i,"briefcase-business","practice-program-")));
   const tabs=[$("clinical-tab"),$("practice-tab")];
-  const setTab=n=>{tabs.forEach((t,i)=>{t.setAttribute("aria-selected",String(i===n));t.tabIndex=i===n?0:-1});
-    $("clinical-panel").hidden=n!==0;$("practice-panel").hidden=n!==1;tabs[n].focus();refreshReveal()};
+  const setTab=(n,focus=true)=>{tabs.forEach((t,i)=>{t.setAttribute("aria-selected",String(i===n));t.tabIndex=i===n?0:-1});
+    $("clinical-panel").hidden=n!==0;$("practice-panel").hidden=n!==1;if(focus)tabs[n].focus();refreshReveal()};
   tabs.forEach((t,i)=>{t.onclick=()=>setTab(i);t.onkeydown=e=>{if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();setTab(1-i)}}});
+  if(new URLSearchParams(location.search).get("tab")==="practice")setTab(1,false);
+}
+
+/* ---------- program.html: one dedicated page per program (?p=slug) ---------- */
+const DEFAULTS={duration:"[Duration]",mode:"[In-person / Hybrid]",schedule:"[Dates & timings]",fee:"[Course fee]",eligibility:"[Eligibility]",certificate:"[Certification]",intake:"[Next intake]",seats:"[Seats available]"};
+const detail=$("program-detail");
+if(detail){
+  const all=[...programs.map(p=>({...p,kind:"clinical"})),...practicePrograms.map(p=>({...p,kind:"practice"}))];
+  const k=all.findIndex(p=>slug(p.title)===new URLSearchParams(location.search).get("p"));
+  const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+  const link=(cls,href,html)=>{const a=mk("a",cls);a.href=href;a.innerHTML=html;return a};
+  const p=all[k];
+  if(!p){
+    detail.append(mk("h1","program-title","Program not found"),link("program-back","programs.html",'<i data-lucide="arrow-left"></i>Back to all programs'));
+  }else{
+    const clinical=p.kind==="clinical",d=Object.assign({},DEFAULTS,p.details);
+    document.title=p.title+" | AAGD";
+    const head=mk("div","program-head");
+    head.append(link("program-back",clinical?"programs.html":"programs.html?tab=practice",'<i data-lucide="arrow-left"></i>All programs'),
+      mk("span","eyebrow",clinical?"Clinical skills program":"Practice skills program"),mk("h1","program-title",p.title),mk("p","program-sub",p.subtitle));
+    const main=mk("div","program-main"),side=mk("aside","program-side"),block=h=>{const s=mk("section","program-block");s.append(mk("h2",null,h));return s};
+    /* banner */
+    const banner=mk("div","program-banner"),bi=document.createElement("img");
+    bi.src=imgFor(p,1100,460);bi.alt=p.title;bi.onerror=()=>bi.remove();banner.append(bi);
+    /* about */
+    const about=block("About this course");about.append(mk("p","program-overview",p.overview));
+    /* curriculum (accordion) */
+    const cur=block("Curriculum");
+    (clinical?p.items:p.modules.map(m=>[m,""])).forEach((r,n)=>{
+      const det=document.createElement("details"),sm=document.createElement("summary"),body=mk("div","mod-body");
+      if(n===0)det.open=true;
+      sm.append(mk("span","mod-no","Module "+(n+1)),mk("span","mod-name",r[0]));
+      if(r[1])body.append(mk("p",null,r[1].charAt(0).toUpperCase()+r[1].slice(1)));
+      body.append(mk("p","mod-meta","Hours: [00]  ·  Format: [Lecture / Hands-on]  ·  Assessment: [Method]"),mk("p","mod-meta","Topics: [Add the topic list for this module]"));
+      det.append(sm,body);cur.append(det)});
+    /* flyers & images */
+    const fly=block("Flyers & images"),fg=mk("div","flyer-grid");
+    (p.flyers&&p.flyers.length?p.flyers:[0,0,0]).forEach((f,n)=>{
+      const t=mk("figure","flyer");
+      if(f){const i=document.createElement("img");i.src=f;i.alt=p.title+" flyer "+(n+1);t.append(i)}
+      else{t.classList.add("is-empty");t.innerHTML='<i data-lucide="image"></i><span>Flyer / poster image</span><small>Add your image here</small>'}
+      fg.append(t)});
+    fly.append(fg);
+    /* downloads */
+    const mat=block("Downloads & materials"),ml=mk("ul","material-list");
+    (p.materials||[["Course flyer","PDF"],["Curriculum brochure","PDF"],["Application form","PDF"],["Class schedule","PDF"]]).forEach(([t,ty,h])=>{
+      const li=mk("li"),a=link("",h||"#",'<i data-lucide="file-text"></i><span class="mat-title"></span><span class="mat-type"></span><i data-lucide="download"></i>');
+      a.querySelector(".mat-title").textContent=t;a.querySelector(".mat-type").textContent=ty;li.append(a);ml.append(li)});
+    mat.append(ml);
+    main.append(banner,about,cur,fly,mat);
+    /* sidebar: course details */
+    const facts=mk("div","program-facts"),dl=mk("dl");
+    facts.append(mk("h3",null,"Course details"));
+    [["Duration","duration"],["Mode","mode"],["Schedule","schedule"],["Fee","fee"],["Eligibility","eligibility"],["Certificate","certificate"],["Next intake","intake"],["Seats","seats"]]
+      .forEach(([l,key])=>dl.append(mk("dt",null,l),mk("dd",null,d[key])));
+    const ext=link("text-link","https://aagd.colornpixel.com/?p="+(clinical?"clinical":"practice")+"-skills-training",'View on AAGD website<i data-lucide="arrow-up-right"></i>');
+    ext.target="_blank";ext.rel="noopener noreferrer";
+    facts.append(dl,link("button button-primary","index.html#join",'Apply / Join AAGD<i data-lucide="arrow-up-right"></i>'),link("button button-outline","contact.html",'Enquire about this course<i data-lucide="mail"></i>'),ext);
+    side.append(facts);
+    const layout=mk("div","program-layout");layout.append(main,side);
+    /* prev / next */
+    const same=all.filter(x=>x.kind===p.kind),j=same.indexOf(p),pager=mk("div","program-pager"),pv=same[j-1],nx=same[j+1];
+    pager.append(pv?link("","program.html?p="+slug(pv.title),"← "+pv.title):mk("span"),nx?link("","program.html?p="+slug(nx.title),nx.title+" →"):mk("span"));
+    detail.append(head,layout,pager);
+  }
 }
 const mg=$("mentor-grid");
 if(mg)mentors.forEach((name,i)=>{
@@ -85,14 +140,14 @@ menuBtn.addEventListener("click",()=>setMenu(!nav.classList.contains("open")));
 nav.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>setMenu(false)));
 document.addEventListener("keydown",e=>{
   if(e.key!=="Escape")return;
-  if(modal&&modal.open)return;
   const og=groups.find(g=>g.classList.contains("open"));
   if(og){closeAll();og.querySelector(".nav-trigger").focus()}
   else if(nav.classList.contains("open")){setMenu(false);menuBtn.focus()}
 });
 matchMedia("(min-width:1281px)").addEventListener("change",e=>{if(e.matches)setMenu(false)});
 /* highlight the link for the current page */
-const here=(location.pathname.split("/").pop()||"index.html").toLowerCase();
+let here=(location.pathname.split("/").pop()||"index.html").toLowerCase();
+if(here==="program.html")here="programs.html";
 document.querySelectorAll("#primary-nav a[href]").forEach(a=>{
   const h=a.getAttribute("href");
   if(!h.includes("#")&&!/^https?:/.test(h)&&h.toLowerCase()===here)a.setAttribute("aria-current","page");
@@ -111,8 +166,9 @@ themeBtn.addEventListener("click",()=>{const t=isDark()?"light":"dark";document.
 document.querySelectorAll(".join-item-toggle").forEach(b=>b.addEventListener("click",()=>{
   const ex=b.getAttribute("aria-expanded")==="true";b.setAttribute("aria-expanded",String(!ex));
   $(b.getAttribute("aria-controls")).setAttribute("aria-hidden",String(ex))}));
-const hdr=$("site-header"),upd=()=>hdr.classList.toggle("scrolled",scrollY>12);
-addEventListener("scroll",upd,{passive:true});upd();
+const hdr=$("site-header");let tick=false;
+const upd=()=>{tick=false;hdr.style.setProperty("--hp",Math.min(1,Math.max(0,scrollY/160)).toFixed(3));hdr.classList.toggle("scrolled",scrollY>12)};
+addEventListener("scroll",()=>{if(!tick){tick=true;requestAnimationFrame(upd)}},{passive:true});upd();
 
 /* ---------- Upward scroll reveal (.rv -> .rv.in) ---------- */
 const AUTO="main section h1,main section h2,main section h3,main .lead,main .section-heading,main .quote,main .tabs,main .cont > *,main .cols3 > *,main .fr,main .fp > *,main .fb,main .stats,main .proj,main .soon,main .join-box,main .about-image,main .about-copy,main .practice-description,main .mentor-more,.reveal,footer .footer-grid";
